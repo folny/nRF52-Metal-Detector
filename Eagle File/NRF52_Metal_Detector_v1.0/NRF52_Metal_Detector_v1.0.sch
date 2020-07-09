@@ -9164,7 +9164,7 @@ Source: http://www.taiwansemi.com .. 5205_0409c.pdf</description>
 <part name="C6" library="resistor" deviceset="C-EU" device="C1206" value="68n"/>
 <part name="R1" library="resistor" deviceset="R-EU_" device="R0805" value="4k7"/>
 <part name="GND5" library="supply1" deviceset="GND" device=""/>
-<part name="C8" library="resistor" deviceset="C-EU" device="C1206" value="3n3"/>
+<part name="C8" library="resistor" deviceset="C-EU" device="C1206" value="10n"/>
 <part name="GND7" library="supply1" deviceset="GND" device=""/>
 <part name="C4" library="resistor" deviceset="C-EU" device="C1206" value="1u"/>
 <part name="C17" library="resistor" deviceset="C-EU" device="C0805" value="10n"/>
@@ -9184,7 +9184,7 @@ Source: http://www.taiwansemi.com .. 5205_0409c.pdf</description>
 <part name="R7" library="resistor" deviceset="R-EU_" device="R0805" value="10k"/>
 <part name="R3" library="resistor" deviceset="R-EU_" device="R0805" value="3k3"/>
 <part name="C23" library="resistor" deviceset="C-EU" device="C1206" value="22u"/>
-<part name="C9" library="resistor" deviceset="C-EU" device="C1206" value="4n7"/>
+<part name="C9" library="resistor" deviceset="C-EU" device="C1206" value="10n"/>
 <part name="R10" library="resistor" deviceset="R-EU_" device="R0805" value="47r"/>
 <part name="+3V3" library="supply1" deviceset="+3V3" device="" value="Rx_VCC"/>
 <part name="C1" library="resistor" deviceset="C-EU" device="C0805" value="3n3"/>
