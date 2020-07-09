@@ -18,12 +18,12 @@
 #include "nrf_drv_gpiote.h"
 #include "SEGGER_RTT.h" 
 
-//J-Link RTT Viewer Commands: i = Setup Info / 1 = Ennable, 0 = Dissable Power / r = nRF Reset / c = Calibrate / + = Tx Phase + / - = Tx Phase - / F = Tx Frequency + / f = Tx Frequency - (default 11.36kHz) / G = Groundbalanc + / g = Groundbalanc - / p =  Static/Dynamic Mode 
+//J-Link RTT Viewer Commands: i = Setup Info / 1 = Ennable, 0 = nRF Reset and Dissable Power / c = Calibrate / + = Tx Phase + / - = Tx Phase - / F = Tx Frequency + / f = Tx Frequency - (default 11.36kHz) / G = Groundbalanc + / g = Groundbalanc - / p =  Static/Dynamic Mode 
 
 int Power = 0; 
 
 int Frequency = 350; //Set Frequency 11.36kHz
-int Phase_Set = 163; //Set TX Phase (0 - Frequency/2 Max!)
+int Phase_Set = 188; //Set TX Phase (0 - Frequency/2 Max!)
 		
 double GB_Set = 89.90;
 
@@ -177,7 +177,7 @@ void hf_clock_enable(void)
 void hf_clock_disable(void)
 {
     NRF_CLOCK->EVENTS_HFCLKSTARTED = 0;
-    NRF_CLOCK->TASKS_HFCLKSTART = 0;
+    NRF_CLOCK->TASKS_HFCLKSTOP = 1;
 }
 
 void lf_clock_enable(void)
@@ -203,8 +203,8 @@ void timers_init(int frequency, int tx_phase)
     NRF_TIMER4->MODE                    = TIMER_MODE_MODE_Timer << TIMER_MODE_MODE_Pos;
 	  NRF_TIMER4->CC[0] = frequency;
  	
-    NRF_TIMER4->TASKS_START = 1;		
-    NRF_TIMER3->TASKS_START = 1;              
+    NRF_TIMER4->TASKS_STOP = 1;		
+    NRF_TIMER3->TASKS_STOP = 1;              
 }
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
@@ -248,20 +248,22 @@ void rx_saadc_init(void) {
     //Rx Configure SAADC
     rx_saadc_config.low_power_mode = false;                                                    
     rx_saadc_config.resolution = NRF_SAADC_RESOLUTION_14BIT;                                
-	  rx_saadc_config.oversample = NRF_SAADC_OVERSAMPLE_DISABLED; 
+	  rx_saadc_config.oversample = NRF_SAADC_OVERSAMPLE_4X; 
     rx_saadc_config.interrupt_priority = APP_IRQ_PRIORITY_HIGH;                              
 	
     nrf_drv_saadc_init(&rx_saadc_config,saadc_callback);                       
 		
     rx_channel_config.reference = NRF_SAADC_REFERENCE_INTERNAL;                              
     rx_channel_config.gain = NRF_SAADC_GAIN4;  
-    rx_channel_config.burst = NRF_SAADC_BURST_DISABLED;		
+    rx_channel_config.burst = NRF_SAADC_BURST_ENABLED;		
     rx_channel_config.acq_time = NRF_SAADC_ACQTIME_3US;                                     
     rx_channel_config.mode = NRF_SAADC_MODE_DIFFERENTIAL;                                    
     rx_channel_config.pin_p = (nrf_saadc_input_t)NRF_SAADC_INPUT_AIN7;                                         
     rx_channel_config.pin_n = (nrf_saadc_input_t)NRF_SAADC_INPUT_AIN6;                                      
     rx_channel_config.resistor_p = NRF_SAADC_RESISTOR_DISABLED;                               
-    rx_channel_config.resistor_n = NRF_SAADC_RESISTOR_DISABLED;
+    rx_channel_config.resistor_n = NRF_SAADC_RESISTOR_DISABLED;		
+	 
+    NRF_SAADC->CH[0].CONFIG |= 0x01000000;                                   
 		
 		nrf_drv_saadc_channel_init(0, &rx_channel_config);				
 	  nrf_drv_saadc_buffer_convert(m_buffer_pool[0],SAMPLES_IN_BUFFER);
@@ -302,14 +304,6 @@ int main(void)
 	  bsp_init(BSP_INIT_LEDS, NULL);
 	
 	  bsp_indication_set(BSP_INDICATE_ADVERTISING); 
-								
-	  timers_init(Frequency,Phase_Set);
-		
-	  gpiote_init();	
-	  rx_saadc_init(); 
-		
-	  NRF_TIMER4->TASKS_START = 0;		
-    NRF_TIMER3->TASKS_START = 0; 
 		
 	  SEGGER_RTT_WriteString(0,"Config Ready... Power Disabled\n");
 		nrf_delay_ms(200);
@@ -326,32 +320,22 @@ while(1){
 	  }
 
     if(RTT_Data == '1'){
-	  Power = 1;
 		hf_clock_enable();
-	  bsp_indication_set(BSP_INDICATE_ADVERTISING_WHITELIST);
-    nrf_gpio_pin_write(Power_Controll,1);	
+    nrf_gpio_pin_write(Power_Controll,1);
+	  timers_init(Frequency,Phase_Set);
 	  NRF_TIMER4->TASKS_START = 1;		
     NRF_TIMER3->TASKS_START = 1;
-    CalibCtr  = 0;	
+	  rx_saadc_init(); 
+		gpiote_init();				
+		Power = 1;
+	  bsp_indication_set(BSP_INDICATE_ADVERTISING_WHITELIST);			
     SEGGER_RTT_WriteString(0,"Config Ready... Power Enabled\n");			
 	  nrf_delay_ms(200);
 	  }
 
     if(RTT_Data == '0'){
-	  Power = 0;
-		hf_clock_disable();
-	  bsp_indication_set(BSP_INDICATE_ADVERTISING);
-	  nrf_gpio_pin_write(Power_Controll,0);			
-	  NRF_TIMER4->TASKS_START = 0;		
-    NRF_TIMER3->TASKS_START = 0; 
-	  SEGGER_RTT_WriteString(0,"Config Ready... Power Disabled\n");
-    nrf_delay_ms(200);
-	  }	
-			
-	  if(RTT_Data == 'r'){
-	  SEGGER_RTT_WriteString(0,"nRF Restart\n");
     NVIC_SystemReset();
-	  }
+	  }	
 			
 	  if(RTT_Data == 'c'){
 	  SEGGER_RTT_WriteString(0,"Calibrate\n");
@@ -363,7 +347,7 @@ while(1){
 	  Phase_Set++;
     NRF_TIMER3->CC[2] = Phase_Set + 1;
     NRF_TIMER3->CC[1] = ((Phase_Set + 1) + Frequency/2) % Frequency;
-	  CalibCtr  = 0;
+	  CalibCtr = 0;
 	  }
 	
     if(RTT_Data == '-'){
@@ -371,7 +355,7 @@ while(1){
 	  Phase_Set--;
 	  NRF_TIMER3->CC[2] = Phase_Set + 1;
     NRF_TIMER3->CC[1] = ((Phase_Set + 1) + Frequency/2) % Frequency;
-	  CalibCtr  = 0;
+	  CalibCtr = 0;
 	  }
 	
 	  if(RTT_Data == 'F'){
@@ -381,7 +365,7 @@ while(1){
     NRF_TIMER3->CC[2] = Phase_Set + 1;
     NRF_TIMER3->CC[1] = ((Phase_Set + 1) + Frequency/2) % Frequency;
   	NRF_TIMER4->CC[0] = Frequency;
-  	CalibCtr  = 0;
+  	CalibCtr = 0;
 	  }
 	
     if(RTT_Data == 'f'){
@@ -391,7 +375,7 @@ while(1){
     NRF_TIMER3->CC[2] = Phase_Set + 1;
     NRF_TIMER3->CC[1] = ((Phase_Set + 1) + Frequency/2) % Frequency;
    	NRF_TIMER4->CC[0] = Frequency;
-  	CalibCtr  = 0;
+  	CalibCtr = 0;
   	}
 	
     if(RTT_Data == 'G'){
