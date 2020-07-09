@@ -18,7 +18,7 @@
 #include "nrf_drv_gpiote.h"
 #include "SEGGER_RTT.h" 
 
-//J-Link RTT Viewer Commands: 1 = Ennable, 0 = Dissable Power / r = nRF Reset / c = Calibrate / + = Tx Phase + / - = Tx Phase - / F = Tx Frequency + / f = Tx Frequency - (default 11.36kHz) / G = Groundbalanc + / g = Groundbalanc - / p =  Static/Dynamic Mode 
+//J-Link RTT Viewer Commands: i = Setup Info / 1 = Ennable, 0 = Dissable Power / r = nRF Reset / c = Calibrate / + = Tx Phase + / - = Tx Phase - / F = Tx Frequency + / f = Tx Frequency - (default 11.36kHz) / G = Groundbalanc + / g = Groundbalanc - / p =  Static/Dynamic Mode 
 
 int Power = 0; 
 
@@ -168,6 +168,25 @@ double IIR_Y_LPF_Filter(double x){
  return (double)y;
 }
 
+void hf_clock_enable(void)
+{
+    NRF_CLOCK->EVENTS_HFCLKSTARTED = 0;
+    NRF_CLOCK->TASKS_HFCLKSTART = 1;
+}
+
+void hf_clock_disable(void)
+{
+    NRF_CLOCK->EVENTS_HFCLKSTARTED = 0;
+    NRF_CLOCK->TASKS_HFCLKSTART = 0;
+}
+
+void lf_clock_enable(void)
+{
+    NRF_CLOCK->LFCLKSRC            = (CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos);
+    NRF_CLOCK->EVENTS_LFCLKSTARTED = 0;
+    NRF_CLOCK->TASKS_LFCLKSTART    = 1;
+}
+
 void timers_init(int frequency, int tx_phase)
 {		
 	  NRF_TIMER3->BITMODE                 = TIMER_BITMODE_BITMODE_16Bit << TIMER_BITMODE_BITMODE_Pos;
@@ -186,23 +205,6 @@ void timers_init(int frequency, int tx_phase)
  	
     NRF_TIMER4->TASKS_START = 1;		
     NRF_TIMER3->TASKS_START = 1;              
-}
-    
-void hf_clock_initialization( void )
-{
-    NRF_CLOCK->EVENTS_HFCLKSTARTED = 0;
-    NRF_CLOCK->TASKS_HFCLKSTART = 1;
-
-    while (NRF_CLOCK->EVENTS_HFCLKSTARTED == 0);
-}
-
-void lf_clock_initialization()
-{
-    NRF_CLOCK->LFCLKSRC            = (CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos);
-    NRF_CLOCK->EVENTS_LFCLKSTARTED = 0;
-    NRF_CLOCK->TASKS_LFCLKSTART    = 1;
-
-    while (NRF_CLOCK->EVENTS_LFCLKSTARTED == 0);
 }
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
@@ -285,8 +287,7 @@ int main(void)
 {
 	  NRF_POWER->DCDCEN = true;
 	
-	  lf_clock_initialization();
-    hf_clock_initialization();
+	  lf_clock_enable();
 	
 		NRF_LOG_INIT(NULL);
     NRF_LOG_DEFAULT_BACKENDS_INIT();
@@ -296,19 +297,20 @@ int main(void)
 	  nrf_gpio_pin_write(Power_Controll,0);
 	  nrf_gpio_cfg_output(Status_LED);
 	  nrf_gpio_pin_write(Status_LED,0);
+	
+		app_timer_init();			
+	  bsp_init(BSP_INIT_LEDS, NULL);
+	
+	  bsp_indication_set(BSP_INDICATE_ADVERTISING); 
 								
 	  timers_init(Frequency,Phase_Set);
 		
 	  gpiote_init();	
-	  rx_saadc_init();
-	
-	  app_timer_init();			
-	  bsp_init(BSP_INIT_LEDS, NULL);
-	
-	  bsp_indication_set(BSP_INDICATE_ADVERTISING);  
+	  rx_saadc_init(); 
 		
 	  NRF_TIMER4->TASKS_START = 0;		
     NRF_TIMER3->TASKS_START = 0; 
+		
 	  SEGGER_RTT_WriteString(0,"Config Ready... Power Disabled\n");
 		nrf_delay_ms(200);
 
@@ -317,9 +319,15 @@ while(1){
     char RTT_Data = 0;
 
 	  RTT_Data = SEGGER_RTT_GetKey(); 
+	
+	  if(RTT_Data == 'i'){
+    SEGGER_RTT_printf(0,"Frequency:%d Tx Phase:%d GB:%d \n",(int)Frequency,(int)Phase_Set,(int)GB_Set);
+		nrf_delay_ms(500);
+	  }
 
     if(RTT_Data == '1'){
 	  Power = 1;
+		hf_clock_enable();
 	  bsp_indication_set(BSP_INDICATE_ADVERTISING_WHITELIST);
     nrf_gpio_pin_write(Power_Controll,1);	
 	  NRF_TIMER4->TASKS_START = 1;		
@@ -331,12 +339,13 @@ while(1){
 
     if(RTT_Data == '0'){
 	  Power = 0;
+		hf_clock_disable();
 	  bsp_indication_set(BSP_INDICATE_ADVERTISING);
 	  nrf_gpio_pin_write(Power_Controll,0);			
 	  NRF_TIMER4->TASKS_START = 0;		
     NRF_TIMER3->TASKS_START = 0; 
 	  SEGGER_RTT_WriteString(0,"Config Ready... Power Disabled\n");
-    nrf_delay_ms(200);;
+    nrf_delay_ms(200);
 	  }	
 			
 	  if(RTT_Data == 'r'){
